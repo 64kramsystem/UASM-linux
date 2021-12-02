@@ -1,19 +1,13 @@
-![alt tag](http://www.terraspace.co.uk/gfx/uasm.png)
+# UASM-linux
 
----
+Fork of [UASM](https://github.com/Terraspace/UASM), fixed to compile on modern Linux systems.
 
-[![gitter](https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg?style=flat-square)](https://gitter.im/john-terraspace/HJWASM)
-[![Build Status](https://travis-ci.org/Terraspace/UASM.svg?branch=master)](https://travis-ci.org/Terraspace/UASM)
+## Build
 
----
+Run `make -j $(nproc)` from the project root; the output is built under `GccUnixR`.
 
-## Authors
+## Fork Details
 
-* Branislav Habus
-* John Hankinson
+This project is based on the upstream version 2.50, which is the last before the dependency `direct.h` was added.
 
----
-
-## On the Web
-
-(http://www.terraspace.co.uk/uasm.html)
+Testing (compilation) has been performed on Clang 12; the changes required for the compilation (the upstream version used Clang 3.8) are included in the master HEAD commit.
