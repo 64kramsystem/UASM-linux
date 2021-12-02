@@ -21,7 +21,7 @@ endif
 
 c_flags =-D __UNIX__ $(extra_c_flags)
 
-CC = clang-3.8
+CC = clang
 
 .SUFFIXES:
 .SUFFIXES: .c .o
