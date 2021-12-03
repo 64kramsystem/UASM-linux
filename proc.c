@@ -560,21 +560,6 @@ static void *popitem(void *stk)
 	return(elmt);
 }
 
-#if 0
-void *peekitem(void *stk, int level)
-/************************************/
-{
-	struct qnode  *node = (struct qnode *)stk;
-	for (; node && level; level--) {
-		node = node->next;
-	}
-	if (node)
-		return(node->elt);
-	else
-		return(NULL);
-}
-#endif
-
 static void push_proc(struct dsym *proc)
 /****************************************/
 {
@@ -2022,8 +2007,6 @@ ret_code ProcDir(int i, struct asm_tok tokenarray[])
 
 	}
 	else {
-		/**/
-		myassert(sym != NULL);
 
 		procidx++;
 		sym->isdefined = TRUE;
@@ -2036,22 +2019,17 @@ ret_code ProcDir(int i, struct asm_tok tokenarray[])
 		ofs = GetCurrOffset();
 
 		if (ofs != sym->offset) {
-			DebugMsg(("ProcDir(%s): %spass %u, old ofs=%" I32_SPEC "X, new ofs=%" I32_SPEC "X\n",
-				sym->name,
-				ModuleInfo.PhaseError ? "" : "phase error ",
-				Parse_Pass + 1, sym->offset, ofs));
 			sym->offset = ofs;
 			ModuleInfo.PhaseError = TRUE;
 		}
 		CurrProc = (struct dsym *)sym;
-#if AMD64_SUPPORT
+
 		/* check if the exception handler set by FRAME is defined */
 		if (CurrProc->e.procinfo->isframe &&
 			CurrProc->e.procinfo->exc_handler &&
 			CurrProc->e.procinfo->exc_handler->state == SYM_UNDEFINED) {
 			EmitErr(SYMBOL_NOT_DEFINED, CurrProc->e.procinfo->exc_handler->name);
 		}
-#endif
 	}
 
 	/* v2.11: init @ProcStatus - prologue not written yet, optionally set FPO flag */
@@ -2078,11 +2056,10 @@ ret_code ProcDir(int i, struct asm_tok tokenarray[])
 		LstWrite(LSTTYPE_LABEL, 0, NULL);
 
 	if (Options.line_numbers) {
-#if COFF_SUPPORT
-		AddLinnumDataRef(get_curr_srcfile(), Options.output_format == OFORMAT_COFF ? 0 : GetLineNumber());
-#else
-		AddLinnumDataRef(get_curr_srcfile(), GetLineNumber());
-#endif
+		if (Options.debug_symbols == 4)
+			AddLinnumDataRef(get_curr_srcfile(), GetLineNumber());
+		else
+			AddLinnumDataRef(get_curr_srcfile(), Options.output_format == OFORMAT_COFF ? 0 : GetLineNumber());
 	}
 
 	BackPatch(sym);
@@ -3364,31 +3341,6 @@ static void write_win64_default_prologue_RSP(struct proc_info *info)
 				AddLineQueueX(*(ppfmt + 0), T_RSP, NUMQUAL stackSize, sym_ReservedStack->name);
 			}
 			AddLineQueueX(*(ppfmt + 1), T_DOT_ALLOCSTACK, NUMQUAL stackSize, sym_ReservedStack->name);
-
-			/* Handle ZEROLOCALS option */
-			if (ZEROLOCALS && info->localsize)
-			{
-				if (info->localsize <= 128)
-				{
-					AddLineQueueX("mov %r, %u", T_EAX, info->localsize);
-					AddLineQueueX("dw 02ebh");       /* jmp L2 */
-					AddLineQueueX("dec %r", T_EAX);  /* L1: */
-					AddLineQueueX("mov byte ptr [%r + %r], 0", T_RSP, T_RAX); /* L2: */
-					AddLineQueueX("dw 0F875h"); /* jne L1: */
-				}
-				else
-				{
-					AddLineQueueX("push %r", T_RDI);
-					AddLineQueueX("push %r", T_RCX);
-					AddLineQueueX("xor %r, %r", T_EAX, T_EAX);
-					AddLineQueueX("mov %r, %u", T_ECX, info->localsize);
-					AddLineQueueX("cld");
-					AddLineQueueX("lea %r, [%r+16]", T_RDI, T_RSP);
-					AddLineQueueX("rep stosb");
-					AddLineQueueX("pop %r", T_RCX);
-					AddLineQueueX("pop %r", T_RDI);
-				}
-			}
 
 			/* save xmm registers */
 			if (cntxmm) {
@@ -5044,6 +4996,7 @@ void write_prologue(struct asm_tok tokenarray[])
 
 	/* reset @ProcStatus flag */
 	ProcStatus &= ~PRST_PROLOGUE_NOT_DONE;
+	CurrProc->e.procinfo->prologueDone = FALSE;
 
 	if (Parse_Pass == PASS_1)
 		CurrProc->e.procinfo->fpo = FALSE;
@@ -5109,6 +5062,8 @@ void write_prologue(struct asm_tok tokenarray[])
 		write_userdef_prologue(tokenarray);
 
 	ProcStatus &= ~PRST_INSIDE_PROLOGUE;
+	CurrProc->e.procinfo->prologueDone = TRUE;
+
 	/* v2.10: for debug info, calculate prologue size */
 	CurrProc->e.procinfo->size_prolog = GetCurrOffset() - CurrProc->sym.offset;
 	return;
