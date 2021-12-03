@@ -173,7 +173,7 @@ uint_32 GetTyperef(struct asym* sym, uint_8 Ofssize)
 			else {
 				switch (size) {
 				case 1: return ST_UCHAR;
-				case 2: return ST_UINT2;
+				case 2: return ST_CHAR16;// ST_UINT2;
 				case 4: return ST_UINT4;
 				case 6: return ST_REAL48;
 				case 8: return ST_UINT8;
@@ -1220,7 +1220,7 @@ static void cv_align(dbgcv* cv)
 
 /* flush section header and return memory address */
 
-static CV_SECTION* cv_FlushSection(dbgcv* cv, uint_32 signature)
+static uint_8* cv_FlushSection(dbgcv* cv, uint_32 signature, uint_32 ex)
 {
 	int i;
 	uint_8* p, * curr;
@@ -1232,15 +1232,15 @@ static CV_SECTION* cv_FlushSection(dbgcv* cv, uint_32 signature)
 	curr = cv->ps;
 	cv->ps = seg->e.seginfo->CodeBuffer;
 	currsize = curr - cv->ps;
-	size = currsize + sizeof(struct qditem) + sizeof(CV_SECTION);
+	size = currsize + ex + sizeof(struct qditem) + sizeof(CV_SECTION);
 
 	p = (unsigned char*)LclAlloc(size);
 	((struct qditem*)p)->next = NULL;
-	((struct qditem*)p)->size = currsize + sizeof(CV_SECTION);
+	((struct qditem*)p)->size = currsize + ex + sizeof(CV_SECTION);
 
-	cv->section = (CV_SECTION*)&p[size - sizeof(CV_SECTION)];
+	cv->section = (CV_SECTION*)&p[size - ex - sizeof(CV_SECTION)];
 	cv->section->signature = signature;
-	cv->section->length = 0;
+	cv->section->length = ex;
 
 	if (currsize)
 		memcpy(p + sizeof(struct qditem), seg->e.seginfo->CodeBuffer, currsize);
@@ -1253,7 +1253,7 @@ static CV_SECTION* cv_FlushSection(dbgcv* cv, uint_32 signature)
 		((struct qditem*)(cm->SymDeb[i].q.tail))->next = p;
 		cm->SymDeb[i].q.tail = p;
 	}
-	seg->e.seginfo->current_loc = seg->e.seginfo->start_loc + currsize + sizeof(CV_SECTION);
+	seg->e.seginfo->current_loc = seg->e.seginfo->start_loc + currsize + ex + sizeof(CV_SECTION);
 	seg->e.seginfo->start_loc = seg->e.seginfo->current_loc;
 
 	return(cv->section);
@@ -1359,7 +1359,7 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 
 		/* source filename string table */
 
-		cv_FlushSection(&cv, 0x000000F3);
+		cv_FlushSection(&cv, 0x000000F3, 0);
 		cv.section->length++;
 		*cv.ps++ = '\0';
 
@@ -1376,11 +1376,9 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 				name = cv.currdir;
 			}
 			len = strlen(name) + 1;
-			memcpy(cv.ps, name, len);
-			p = cv.ps;
 			cv.ps = checkflush(cv.symbols, cv.ps, len, cv.param);
-			if (p == cv.ps)
-				cv.ps += len;
+			memcpy(cv.ps, name, len);
+			cv.ps += len;
 			cv.section->length += len;
 		}
 		*objname = '\0';
@@ -1392,7 +1390,7 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 
 		/* source file info */
 
-		cv_FlushSection(&cv, 0x000000F4);
+		cv_FlushSection(&cv, 0x000000F4, 0);
 
 		for (i = 0; i < ModuleInfo.g.cnt_fnames; i++) {
 
@@ -1439,15 +1437,22 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 				CV_DebugSLinesFileBlockHeader_t* File;
 				struct line_num_info* Queue;
 
-				cv_FlushSection(&cv, 0x000000F2);
-				Header = (CV_DebugSLinesHeader_t*)cv.ps;
-				cv.ps += sizeof(CV_DebugSLinesHeader_t);
-				cv.section->length = sizeof(CV_DebugSLinesHeader_t);
+				p = cv_FlushSection(&cv, 0x000000F2,
+					sizeof(CV_DebugSLinesHeader_t) + sizeof(CV_DebugSLinesFileBlockHeader_t));
+
+				p += sizeof(CV_SECTION);
+				Header = (CV_DebugSLinesHeader_t*)p;
+				p += sizeof(CV_DebugSLinesHeader_t);
+				File = (CV_DebugSLinesFileBlockHeader_t*)p;
 
 				Header->offCon = 0;
 				Header->segCon = 0;
 				Header->flags = 0;
 				Header->cbCon = seg->sym.max_offset;
+
+				File->offFile = 0;
+				File->nLines = 0;
+				File->cbBlock = 0;
 
 				Queue = (struct line_num_info*)((struct qdesc*)seg->e.seginfo->LinnumQueue)->head;
 
@@ -1460,14 +1465,7 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 					if (Queue->number == 0)
 						fileStart = Queue->file;
 
-					cv.ps = checkflush(cv.symbols, cv.ps, sizeof(CV_DebugSLinesFileBlockHeader_t), cv.param);
-					File = (CV_DebugSLinesFileBlockHeader_t*)cv.ps;
-					cv.ps += sizeof(CV_DebugSLinesFileBlockHeader_t);
-
-					cv.section->length += sizeof(CV_DebugSLinesFileBlockHeader_t);
-
 					File->offFile = cv.files[fileStart].offset;
-					File->nLines = 0;
 					File->cbBlock = 12;
 					Prev = NULL;
 
@@ -1496,14 +1494,11 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 								continue;
 						}
 
-						Line = (CV_Line_t*)cv.ps;
 						cv.ps = checkflush(cv.symbols, cv.ps, sizeof(CV_Line_t), cv.param);
-						if (Line == (CV_Line_t*)cv.ps)
-							cv.ps += sizeof(CV_Line_t);
-						else
-							Line = (CV_Line_t*)cv.ps;
-
+						Line = (CV_Line_t*)cv.ps;
+						cv.ps += sizeof(CV_Line_t);
 						cv.section->length += sizeof(CV_Line_t);
+
 						File->nLines++;
 						File->cbBlock += 8;
 
@@ -1522,7 +1517,7 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 
 		/* symbol information */
 
-		cv_FlushSection(&cv, 0x000000F1);
+		cv_FlushSection(&cv, 0x000000F1, 0);
 		start = cv.ps;
 
 		/* Name of object file */
