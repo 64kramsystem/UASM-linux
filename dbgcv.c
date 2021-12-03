@@ -24,10 +24,11 @@
 #endif
 #include <picohash.h>
 
-// _MAX_PATH is defined in `direct.h`, which is not present in Linux.
+// Symbols/functions defined in `direct.h`, which are not present in Unix.
 #if defined(__UNIX__)
 #include <linux/limits.h>
 #define _MAX_PATH PATH_MAX
+#define _getcwd getcwd
 #endif
 
 #define SIZE_CV_SEGBUF ( MAX_LINE_LEN * 4 )
