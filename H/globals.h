@@ -65,7 +65,7 @@
 
 #endif
 
-#define MAX_LINE_LEN            2048 /* no restriction for this number */
+#define MAX_LINE_LEN            1024 /* no restriction for this number */
 #define MAX_TOKEN               MAX_LINE_LEN - 32 /* max tokens in one line */
 #define MAX_STRING_LEN          MAX_LINE_LEN - 32 /* must be < MAX_LINE_LEN */
 #define MAX_ID_LEN              247  /* must be < MAX_LINE_LEN */
@@ -202,11 +202,11 @@
 
 /* Uasm version info */
 #ifdef _WIN64
-#define _UASM_VERSION_STR_ "2.51"
+#define _UASM_VERSION_STR_ "2.53"
 #else
-#define _UASM_VERSION_STR_ "2.51"
+#define _UASM_VERSION_STR_ "2.53"
 #endif
-#define _UASM_VERSION_INT_ 251
+#define _UASM_VERSION_INT_ 253
 #define _UASM_VERSION_SUFFIX_ "pre"
 #define _UASM_VERSION_ _UASM_VERSION_STR_ //_UASM_VERSION_SUFFIX_
 
