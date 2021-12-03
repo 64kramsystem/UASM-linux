@@ -17,7 +17,11 @@
 #include <fixup.h>
 #include <dbgcv.h>
 #include <linnum.h>
+#if defined(__UNIX__)
+#include <unistd.h>
+#else
 #include <direct.h>
+#endif
 #include <picohash.h>
 
 // _MAX_PATH is defined in `direct.h`, which is not present in Linux.
@@ -1564,6 +1568,19 @@ void cv_write_debug_tables(struct dsym* symbols, struct dsym* types, void* pv)
 		EnvBlock->flags = 0;
 		EnvBlock->rectyp = S_ENVBLOCK;
 		s = EnvBlock->rgsz;
+
+
+#if defined(__UNIX__)
+    // Simulate _pgmptr (GetModuleFileName). This is a simple and good enough solution, but for
+    // considerations about a very solid solution, see https://stackoverflow.com/a/34271901.
+    //
+    char _pgmptr[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", _pgmptr, sizeof(_pgmptr));
+    if (len == -1 || len == sizeof(_pgmptr)) {
+        len = 0;
+    }
+    _pgmptr[len] = '\0';
+#endif
 
 		/* pairs of 0-terminated strings - keys/values
 		 *
