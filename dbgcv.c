@@ -20,6 +20,12 @@
 #include <direct.h>
 #include <picohash.h>
 
+// _MAX_PATH is defined in `direct.h`, which is not present in Linux.
+#if defined(__UNIX__)
+#include <linux/limits.h>
+#define _MAX_PATH PATH_MAX
+#endif
+
 #define SIZE_CV_SEGBUF ( MAX_LINE_LEN * 4 )
 
 #define EQUATESYMS 1 /* 1=generate info for EQUates ( -Zi3 ) */
